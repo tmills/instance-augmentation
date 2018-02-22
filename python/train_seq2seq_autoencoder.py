@@ -50,7 +50,7 @@ def main(args):
         from .basic_model import EncoderRNN, DecoderRNN
         print("Training basic RNN decoder.")
         encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100)
-        decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding, max_length=MAX_LENGTH)
+        decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding)
 
     if use_cuda:
         encoder1 = encoder1.cuda()

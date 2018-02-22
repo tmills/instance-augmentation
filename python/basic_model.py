@@ -20,6 +20,7 @@ import torch.nn.functional as F
 #
 #
 use_cuda = torch.cuda.is_available()
+MAX_LENGTH=10
 
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, embedding_dims=100):
@@ -79,7 +80,9 @@ class DecoderRNN(nn.Module):
             self.embedding = nn.Embedding(output_size, hidden_size)
         else:
             self.embedding = embedding
-        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.embedding_size = self.embedding.embedding_dim
+
+        self.gru = nn.GRU(self.embedding_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
         self.has_attention=False
