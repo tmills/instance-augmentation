@@ -22,12 +22,12 @@ import torch.nn.functional as F
 use_cuda = torch.cuda.is_available()
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, embedding_dims=100):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
 
-        self.embedding = nn.Embedding(input_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.embedding = nn.Embedding(input_size, embedding_dims)
+        self.gru = nn.GRU(embedding_dims, hidden_size)
 
     def forward(self, input, hidden):
         embedded = self.embedding(input).view(1, 1, -1)
@@ -71,14 +71,18 @@ class EncoderRNN(nn.Module):
 #
 
 class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size):
+    def __init__(self, hidden_size, output_size, embedding=None):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
 
-        self.embedding = nn.Embedding(output_size, hidden_size)
+        if embedding is None:
+            self.embedding = nn.Embedding(output_size, hidden_size)
+        else:
+            self.embedding = embedding
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
+        self.has_attention=False
 
     def forward(self, input, hidden):
         output = self.embedding(input).view(1, 1, -1)

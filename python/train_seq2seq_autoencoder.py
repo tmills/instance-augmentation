@@ -15,31 +15,48 @@ from torch.autograd import Variable
 from torch import optim
 import torch.nn.functional as F
 
-from .basic_model import EncoderRNN, DecoderRNN
 from .data import Lang, getRandomSentences, variablesFromSents
 
 ## "Global" variables
 use_cuda = torch.cuda.is_available()
-MAX_LENGTH = 10
+MAX_LENGTH = 20
+hidden_size = 512
 #SOS_token = 0
 #EOS_token = 1
 
 def main(args):
     if len(args) < 1:
-        sys.stderr.write('One required argument: <sentlines file>\n')
+        sys.stderr.write('One required argument: <sentlines file> [attention 1|0]\n')
         sys.exit(-1)
 
-    lang, training_sents = getRandomSentences(args[0], MAX_LENGTH)
-
-    hidden_size = 256
-    encoder1 = EncoderRNN(lang.n_words, hidden_size)
-    decoder1 = DecoderRNN(hidden_size, lang.n_words)
+    lang, training_sents, max_length = getRandomSentences(args[0], MAX_LENGTH)
+    
+    if len(args) > 1 and args[1] == '1':
+        from .basic_model import EncoderRNN
+        from .attention_model import AttnDecoderRNN as DecoderRNN
+        attention = True
+        print("Training attention-based decoder.")
+        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100)
+        decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding, max_length=MAX_LENGTH)
+    elif len(args) > 1:
+        print("Resuming training with partially-trained model.")
+        ## TODO: This lang is the one we want since it's word->index mapping is needed, however if the dataset
+        ## given above is different from the one originally used to create the language then there will be
+        ## issues (with OOV), so something is needed to reconcile if I ever try that method.
+        encoder1, decoder1, lang = loadModels(args[1])
+        attention = ('attn' in dir(decoder1))
+    else:
+        attention = False
+        from .basic_model import EncoderRNN, DecoderRNN
+        print("Training basic RNN decoder.")
+        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100)
+        decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding, max_length=MAX_LENGTH)
 
     if use_cuda:
         encoder1 = encoder1.cuda()
         decoder1 = decoder1.cuda()
 
-    trainIters(training_sents, encoder1, decoder1, 750000, lang, print_every=5000)
+    trainIters(training_sents, encoder1, decoder1, 1000000, lang, print_every=5000, attention=attention, max_length=MAX_LENGTH, learning_rate=0.01)
 
 
 ######################################################################
@@ -72,7 +89,7 @@ def main(args):
 teacher_forcing_ratio = 0.5
 
 
-def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
+def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH, attention=False):
     encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
@@ -82,15 +99,17 @@ def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, 
     target_length = target_variable.size()[0]
 
     ## Used only for attention decoder:
-    #encoder_outputs = Variable(torch.zeros(max_length, encoder.hidden_size))
-    #encoder_outputs = encoder_outputs.cuda() if use_cuda else encoder_outputs
+    if attention:
+        encoder_outputs = Variable(torch.zeros(max_length, encoder.hidden_size))
+        encoder_outputs = encoder_outputs.cuda() if use_cuda else encoder_outputs
 
     loss = 0
 
     for ei in range(input_length):
         encoder_output, encoder_hidden = encoder(
             input_variable[ei], encoder_hidden)
-#        encoder_outputs[ei] = encoder_output[0][0]
+        if attention:
+            encoder_outputs[ei] = encoder_output[0][0]
 
     decoder_input = Variable(torch.LongTensor([[Lang.SOS_token]]))
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
@@ -103,8 +122,14 @@ def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, 
         # Teacher forcing: Feed the target as the next input
         for di in range(target_length):
             # If using attention, add encoder_outputs as the 3rd argument and decoder attention as the third output
-            decoder_output, decoder_hidden = decoder(
-                decoder_input, decoder_hidden)
+            # import pdb; pdb.set_trace()
+            if attention:
+                decoder_output, decoder_hidden, decoder_attention = decoder(
+                    decoder_input, decoder_hidden, encoder_outputs)
+            else:
+                decoder_output, decoder_hidden = decoder(
+                    decoder_input, decoder_hidden)
+
             loss += criterion(decoder_output, target_variable[di])
             decoder_input = target_variable[di]  # Teacher forcing
 
@@ -112,8 +137,12 @@ def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, 
         # Without teacher forcing: use its own predictions as the next input
         for di in range(target_length):
             # If using attention, add encoder_outputs as the 3rd argument and decoder attention as the third output
-            decoder_output, decoder_hidden = decoder(
-                decoder_input, decoder_hidden)
+            if attention:
+                decoder_output, decoder_hidden, decoder_attention = decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+            else:
+                decoder_output, decoder_hidden = decoder(
+                    decoder_input, decoder_hidden)
             topv, topi = decoder_output.data.topk(1)
             ni = topi[0][0]
 
@@ -166,7 +195,7 @@ def timeSince(since, percent):
 # of examples, time so far, estimated time) and average loss.
 #
 
-def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_every=100, learning_rate=0.01, attention=False, max_length=MAX_LENGTH):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -184,7 +213,7 @@ def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_ev
         target_variable = training_pair[1]
 
         loss = train(input_variable, target_variable, encoder,
-                     decoder, encoder_optimizer, decoder_optimizer, criterion)
+                     decoder, encoder_optimizer, decoder_optimizer, criterion, attention=attention, max_length=max_length)
         print_loss_total += loss
         plot_loss_total += loss
 

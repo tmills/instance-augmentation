@@ -69,14 +69,20 @@ def variablesFromSents(lang, sent):
 def getRandomSentences(fn, max_length=-1):
     f = open(fn, 'r')
     lang = Lang(fn.split('.')[0])
+    actual_max_length = 0
+    num_total_sents = 0
 
     all_sents = []
     for line in f:
+        num_total_sents += 1
         line = line.rstrip()
         tokens = line.split()
-        if max_length == -1 or len(tokens) <= max_length:
+        if max_length == -1 or len(tokens) < max_length:
             all_sents.append(line)
             lang.addSentence(line)
+            actual_max_length = max(actual_max_length, len(tokens))
     
+    print("Collected %d out of %d sentences for training with the proper length" % (len(all_sents), num_total_sents))
+
     f.close()
-    return lang, all_sents
+    return lang, all_sents, actual_max_length

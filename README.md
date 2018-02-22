@@ -1,5 +1,10 @@
 ## Instance augmentation code and experiments
 
+### The seq2seq code used in this project is adapted from the pytorch documentation:
+http://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
+
+the original version can be found in the tutorials subdirectory.
+
 ### Using wikipedia:
 1) Download wiki dump (pages-articles) and bunzip
 2) Clone the wikiextractor repo (https://github.com/attardi/wikiextractor.git)
