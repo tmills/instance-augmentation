@@ -24,12 +24,23 @@ hidden_size = 512
 #SOS_token = 0
 #EOS_token = 1
 
-def main(args):
-    if len(args) < 1:
-        sys.stderr.write('One required argument: <sentlines file> [attention 1|0]\n')
-        sys.exit(-1)
 
-    lang, training_sents, max_length = getRandomSentences(args[0], MAX_LENGTH)
+def main(args):
+    parser = argparse.ArgumentParser(description='Seq2seq trainer')
+    parser.add_argument('--data', type=str, required=True,
+                    help='Sentlines file to train on')
+    parser.add_argument('--attention', action="store_true", help='Use attention model')
+    parser.add_argument('--vectors', type=str, default=None,
+                    help='Pre-trained word embeddings file to use')
+
+    args = parser.parse_args(args)
+
+    lang = None
+    if not args.vectors is None:
+        vectors, lang = readVectors(args.vectors)
+
+    if lang is None:
+        lang, training_sents, max_length = getRandomSentences(args[0], MAX_LENGTH, lang=lang)
     
     if len(args) > 1 and args[1] == '1':
         from .basic_model import EncoderRNN

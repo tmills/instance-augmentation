@@ -7,6 +7,7 @@ import re
 import random
 import sys
 
+import numpy as np
 import torch
 from torch.autograd import Variable
 
@@ -48,6 +49,14 @@ class Lang:
         else:
             self.word2count[word] += 1
 
+class PretrainLang(Lang):
+    def __init__(self, name):
+        self.name = name
+        self.word2index = {}
+        self.word2count = {}
+        self.index2word = {}
+        self.n_words = 0
+
 def indexesFromSentence(lang, sentence):
     return [lang.word2index[word] for word in sentence.split(' ')]
 
@@ -66,9 +75,11 @@ def variablesFromSents(lang, sent):
     target_variable = variableFromSentence(lang, sent)
     return (input_variable, target_variable)
 
-def getRandomSentences(fn, max_length=-1):
+def getRandomSentences(fn, max_length=-1, lang=None):
     f = open(fn, 'r')
-    lang = Lang(fn.split('.')[0])
+    if lang is None:
+        lang = Lang(fn.split('.')[0])
+
     actual_max_length = 0
     num_total_sents = 0
 
@@ -86,3 +97,19 @@ def getRandomSentences(fn, max_length=-1):
 
     f.close()
     return lang, all_sents, actual_max_length
+
+def readVectors(fn):
+    f = open(fn, 'r')
+    header = f.readline().strip()
+    vlen, dims = [int(x) for x in header.split()]
+    vecs = np.zeros((vlen, dims))
+    word_ind = 0
+    lang = PretrainLang('Lang_%s' % (f))
+
+    for line in f.readlines():
+        vals = line.rstrip().split(' ')
+        word = vals[0]
+        lang.addWord(word)
+        vecs[word_ind,:] += [float(x) for x in vals[1:]]
+
+    return vecs, lang
