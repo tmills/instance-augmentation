@@ -49,13 +49,13 @@ class Lang:
         else:
             self.word2count[word] += 1
 
-class PretrainLang(Lang):
-    def __init__(self, name):
-        self.name = name
-        self.word2index = {}
-        self.word2count = {}
-        self.index2word = {}
-        self.n_words = 0
+# class PretrainLang(Lang):
+#     def __init__(self, name):
+#         self.name = name
+#         self.word2index = {}
+#         self.word2count = {}
+#         self.index2word = {}
+#         self.n_words = 0
 
 def indexesFromSentence(lang, sentence):
     return [lang.word2index[word] for word in sentence.split(' ')]
@@ -104,7 +104,7 @@ def readVectors(fn):
     vlen, dims = [int(x) for x in header.split()]
     vecs = np.zeros((vlen, dims))
     word_ind = 0
-    lang = PretrainLang('Lang_%s' % (f))
+    lang = Lang('Lang_%s' % (f))
 
     for line in f.readlines():
         vals = line.rstrip().split(' ')
