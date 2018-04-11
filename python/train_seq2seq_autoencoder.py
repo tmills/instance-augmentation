@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 from io import open
 import unicodedata
 import string
@@ -15,12 +16,12 @@ from torch.autograd import Variable
 from torch import optim
 import torch.nn.functional as F
 
-from .data import Lang, getRandomSentences, variablesFromSents
+from .data import Lang, getRandomSentences, variablesFromSents, readVectors
 
 ## "Global" variables
 use_cuda = torch.cuda.is_available()
 MAX_LENGTH = 20
-hidden_size = 512
+hidden_size = 256
 #SOS_token = 0
 #EOS_token = 1
 
@@ -30,6 +31,8 @@ def main(args):
     parser.add_argument('--data', type=str, required=True,
                     help='Sentlines file to train on')
     parser.add_argument('--attention', action="store_true", help='Use attention model')
+    parser.add_argument('--model', type=str, default=None,
+                    help='Partially-trained model to resume learning')
     parser.add_argument('--vectors', type=str, default=None,
                     help='Pre-trained word embeddings file to use')
 
@@ -39,28 +42,27 @@ def main(args):
     if not args.vectors is None:
         vectors, lang = readVectors(args.vectors)
 
-    if lang is None:
-        lang, training_sents, max_length = getRandomSentences(args[0], MAX_LENGTH, lang=lang)
+    lang, training_sents, max_length = getRandomSentences(args.data, MAX_LENGTH, lang=lang)
     
-    if len(args) > 1 and args[1] == '1':
+    if not args.model is None:
+        print("Resuming training with partially-trained model.")
+        ## TODO: This lang is the one we want since its word->index mapping is needed, however if the dataset
+        ## given above is different from the one originally used to create the language then there will be
+        ## issues (with OOV), so something is needed to reconcile if I ever try that method.
+        encoder1, decoder1, lang = loadModels(args.model)
+        attention = ('attn' in dir(decoder1))
+    elif args.attention:
         from .basic_model import EncoderRNN
         from .attention_model import AttnDecoderRNN as DecoderRNN
         attention = True
         print("Training attention-based decoder.")
-        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100)
+        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100, vectors=vectors)
         decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding, max_length=MAX_LENGTH)
-    elif len(args) > 1:
-        print("Resuming training with partially-trained model.")
-        ## TODO: This lang is the one we want since it's word->index mapping is needed, however if the dataset
-        ## given above is different from the one originally used to create the language then there will be
-        ## issues (with OOV), so something is needed to reconcile if I ever try that method.
-        encoder1, decoder1, lang = loadModels(args[1])
-        attention = ('attn' in dir(decoder1))
     else:
         attention = False
         from .basic_model import EncoderRNN, DecoderRNN
         print("Training basic RNN decoder.")
-        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100)
+        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100, vectors=vectors)
         decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding)
 
     if use_cuda:

@@ -99,11 +99,12 @@ def getRandomSentences(fn, max_length=-1, lang=None):
     return lang, all_sents, actual_max_length
 
 def readVectors(fn):
-    f = open(fn, 'r')
+    f = open(fn, encoding='utf-8')
     header = f.readline().strip()
     vlen, dims = [int(x) for x in header.split()]
-    vecs = np.zeros((vlen, dims))
-    word_ind = 0
+    # Add EOS and SOS vectors
+    vecs = np.zeros((vlen+2, dims))
+    word_ind = 2
     lang = Lang('Lang_%s' % (f))
 
     for line in f.readlines():
@@ -111,5 +112,6 @@ def readVectors(fn):
         word = vals[0]
         lang.addWord(word)
         vecs[word_ind,:] += [float(x) for x in vals[1:]]
+        word_ind += 1
 
     return vecs, lang

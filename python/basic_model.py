@@ -23,12 +23,17 @@ use_cuda = torch.cuda.is_available()
 MAX_LENGTH=10
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, embedding_dims=100):
+    def __init__(self, input_size, hidden_size, embedding_dims=100, vectors=None):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
 
-        self.embedding = nn.Embedding(input_size, embedding_dims)
-        self.gru = nn.GRU(embedding_dims, hidden_size)
+        if vectors is None:
+            self.embedding = nn.Embedding(input_size, embedding_dims)
+        else:
+            self.embedding = nn.Embedding(vectors.shape[0], vectors.shape[1]) # .from_pretrained(torch.FloatTensor(vectors), freeze=False)
+            self.embedding.data = torch.FloatTensor(vectors)
+
+        self.gru = nn.GRU(embedding_dims, hidden_size, bidirectional=True)
 
     def forward(self, input, hidden):
         embedded = self.embedding(input).view(1, 1, -1)
