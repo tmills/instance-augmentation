@@ -91,7 +91,7 @@ def getRandomSentences(fn, max_length=-1, lang=None):
         pretrained = False
         lang = Lang(fn.split('.')[0])
     else:
-        print("Size of dictionary before getting data is: %d" % (lang.n_words))
+        # print("Size of dictionary before getting data is: %d" % (lang.n_words))
         pretrained = True
 
     actual_max_length = 0
@@ -108,7 +108,7 @@ def getRandomSentences(fn, max_length=-1, lang=None):
                 lang.addSentence(line)
             actual_max_length = max(actual_max_length, len(tokens))
     
-    print("Size of dictionary after getting data is: %d" % (lang.n_words))
+    # print("Size of dictionary after getting data is: %d" % (lang.n_words))
     print("Collected %d out of %d sentences for training with the proper length" % (len(all_sents), num_total_sents))
 
     f.close()
