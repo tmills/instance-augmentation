@@ -25,16 +25,18 @@ use_cuda = torch.cuda.is_available()
 
 #SOS_token = 0
 #EOS_token = 1
+#UNK_token = 2
 
 class Lang:
     SOS_token = 0
     EOS_token = 1
+    UNK_token = 2
     def __init__(self, name):
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {Lang.SOS_token: "SOS", Lang.EOS_token: "EOS"}
-        self.n_words = 2  # Count SOS and EOS
+        self.index2word = {Lang.SOS_token: "SOS", Lang.EOS_token: "EOS", Lang.UNK_token: "UNK"}
+        self.n_words = 3  # Count SOS, EOS, UNK
 
     def addSentence(self, sentence):
         for word in sentence.split(' '):
@@ -58,7 +60,15 @@ class Lang:
 #         self.n_words = 0
 
 def indexesFromSentence(lang, sentence):
-    return [lang.word2index[word] for word in sentence.split(' ')]
+    words = sentence.split(' ')
+    # First replace unknown words with unk token if we have it:
+    if 'unk' in lang.word2index:
+        unk_words = [word if word in lang.word2index else 'unk' for word in words]
+    else:
+        unk_words = words
+
+    # Then replace strings with int index.
+    return [lang.word2index[word] if word in lang.word2index else Lang.UNK_token for word in sentence.split(' ')]
 
 def variableFromSentence(lang, sentence):
     indexes = indexesFromSentence(lang, sentence)
@@ -78,7 +88,11 @@ def variablesFromSents(lang, sent):
 def getRandomSentences(fn, max_length=-1, lang=None):
     f = open(fn, 'r')
     if lang is None:
+        pretrained = False
         lang = Lang(fn.split('.')[0])
+    else:
+        print("Size of dictionary before getting data is: %d" % (lang.n_words))
+        pretrained = True
 
     actual_max_length = 0
     num_total_sents = 0
@@ -90,9 +104,11 @@ def getRandomSentences(fn, max_length=-1, lang=None):
         tokens = line.split()
         if max_length == -1 or len(tokens) < max_length:
             all_sents.append(line)
-            lang.addSentence(line)
+            if not pretrained:
+                lang.addSentence(line)
             actual_max_length = max(actual_max_length, len(tokens))
     
+    print("Size of dictionary after getting data is: %d" % (lang.n_words))
     print("Collected %d out of %d sentences for training with the proper length" % (len(all_sents), num_total_sents))
 
     f.close()
@@ -102,9 +118,9 @@ def readVectors(fn):
     f = open(fn, encoding='utf-8')
     header = f.readline().strip()
     vlen, dims = [int(x) for x in header.split()]
-    # Add EOS and SOS vectors
-    vecs = np.zeros((vlen+2, dims))
-    word_ind = 2
+    # Add EOS, SOS, and UNK vectors
+    vecs = np.zeros((vlen+3, dims))
+    word_ind = 3
     lang = Lang('Lang_%s' % (f))
 
     for line in f.readlines():

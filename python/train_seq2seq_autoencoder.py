@@ -35,10 +35,12 @@ def main(args):
                     help='Partially-trained model to resume learning')
     parser.add_argument('--vectors', type=str, default=None,
                     help='Pre-trained word embeddings file to use')
+    parser.add_argument('--bi', action='store_true', help='Use bidirectional encoder RNNs')
 
     args = parser.parse_args(args)
 
     lang = None
+    vectors = None
     if not args.vectors is None:
         vectors, lang = readVectors(args.vectors)
 
@@ -62,8 +64,12 @@ def main(args):
         attention = False
         from .basic_model import EncoderRNN, DecoderRNN
         print("Training basic RNN decoder.")
-        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100, vectors=vectors)
-        decoder1 = DecoderRNN(hidden_size, lang.n_words, embedding=encoder1.embedding)
+        if args.bi:
+            decoder_input_size = hidden_size * 2
+        else:
+            decoder_input_size = hidden_size
+        encoder1 = EncoderRNN(lang.n_words, hidden_size, embedding_dims=100, vectors=vectors, bidirectional=args.bi)
+        decoder1 = DecoderRNN(decoder_input_size, lang.n_words, embedding=encoder1.embedding)
 
     if use_cuda:
         encoder1 = encoder1.cuda()
@@ -118,11 +124,7 @@ def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, 
 
     loss = 0
 
-    for ei in range(input_length):
-        encoder_output, encoder_hidden = encoder(
-            input_variable[ei], encoder_hidden)
-        if attention:
-            encoder_outputs[ei] = encoder_output[0][0]
+    encoder_output, encoder_hidden = encoder(input_variable, encoder_hidden)
 
     decoder_input = Variable(torch.LongTensor([[Lang.SOS_token]]))
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
