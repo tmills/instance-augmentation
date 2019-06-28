@@ -2,6 +2,7 @@
 
 import argparse
 from io import open
+from os.path import join
 import unicodedata
 import string
 import re
@@ -9,6 +10,7 @@ import random
 import sys
 import pickle
 from zipfile import ZipFile
+import tempfile
 
 import torch
 import torch.nn as nn
@@ -36,6 +38,8 @@ def main(args):
     parser.add_argument('--vectors', type=str, default=None,
                     help='Pre-trained word embeddings file to use')
     parser.add_argument('--bi', action='store_true', help='Use bidirectional encoder RNNs')
+    parser.add_argument('--out', type=str, default='model.zip',
+                    help='Name of zip file to write model components')
 
     args = parser.parse_args(args)
 
@@ -75,7 +79,7 @@ def main(args):
         encoder1 = encoder1.cuda()
         decoder1 = decoder1.cuda()
 
-    trainIters(training_sents, encoder1, decoder1, 1000000, lang, print_every=5000, attention=attention, max_length=MAX_LENGTH, learning_rate=0.01)
+    trainIters(training_sents, encoder1, decoder1, 1000000, lang, print_every=5000, attention=attention, max_length=MAX_LENGTH, learning_rate=0.01, model_fn=args.out)
 
 
 ######################################################################
@@ -210,7 +214,7 @@ def timeSince(since, percent):
 # of examples, time so far, estimated time) and average loss.
 #
 
-def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_every=100, learning_rate=0.01, attention=False, max_length=MAX_LENGTH):
+def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_every=100, learning_rate=0.01, attention=False, max_length=MAX_LENGTH, model_fn='model.zip'):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -234,7 +238,7 @@ def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_ev
 
         if iter % print_every == 0:
             ## Checkpoint the models:
-            saveModels(encoder, decoder, lang)
+            saveModels(encoder, decoder, lang, model_fn=model_fn)
 
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
@@ -246,7 +250,7 @@ def trainIters(sents, encoder, decoder, n_iters, lang, print_every=1000, plot_ev
             plot_losses.append(plot_loss_avg)
             plot_loss_total = 0
 
-    showPlot(plot_losses)
+#    showPlot(plot_losses)
 
 
 ######################################################################
@@ -270,17 +274,26 @@ def showPlot(points):
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
 
-def saveModels(encoder, decoder, lang):
-    with open('encoder.pth', 'wb') as f:
-        torch.save(encoder, f)
-    with open('decoder.pth', 'wb') as f:
-        torch.save(decoder, f)
-    with open('lang.pkl', 'wb') as f:
-        pickle.dump(lang, f)
-    with ZipFile('model.ptz', 'w') as myzip:
-        myzip.write('encoder.pth')
-        myzip.write('decoder.pth')
-        myzip.write('lang.pkl')
+def saveModels(encoder, decoder, lang, model_fn='model.zip'):
+    model_dir = tempfile.mkdtemp()
+    #with open('encoder.pth', 'wb') as f:
+    #    torch.save(encoder, f)
+    #with open('decoder.pth', 'wb') as f:
+    #    torch.save(decoder, f)
+    with open(join(model_dir, 'gru.pth'), 'wb') as f:
+        torch.save(encoder.gru, f)
+    with open(join(model_dir, 'embeddings.pth'), 'wb') as f:
+        torch.save(encoder.embedding, f)
+    with open(join(model_dir, 'lang.pkl'), 'wb') as f:
+    #    pickle.dump(lang, f)
+        pickle.dump(lang.word2index, f)
+    with ZipFile(model_fn, 'w') as myzip:
+         myzip.write(join(model_dir, 'gru.pth'), arcname='gru.pth')
+         myzip.write(join(model_dir, 'embeddings.pth'), arcname='embeddings.pth')
+         myzip.write(join(model_dir, 'lang.pkl'), arcname='lang.pkl')
+    #    myzip.write('encoder.pth')
+    #    myzip.write('decoder.pth')
+    #    myzip.write('lang.pkl')
 
 def loadModels(path):
     with ZipFile(path, 'r') as myzip:

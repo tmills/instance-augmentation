@@ -32,7 +32,11 @@ class EncoderRNN(nn.Module):
             self.embedding = nn.Embedding(input_size, embedding_dims)
         else:
             self.embedding = nn.Embedding(vectors.shape[0], vectors.shape[1]) # .from_pretrained(torch.FloatTensor(vectors), freeze=False)
-            self.embedding.data = torch.FloatTensor(vectors)
+            #self.embedding.data = torch.FloatTensor(vectors)
+            #embedding_dims = vectors.shape[1]
+
+        #self.gru = nn.GRU(embedding_dims, hidden_size, bidirectional=bidirectional)
+            self.embedding.weight = nn.Parameter(torch.FloatTensor(vectors))
             embedding_dims = vectors.shape[1]
 
         self.gru = nn.GRU(embedding_dims, hidden_size, bidirectional=bidirectional)
