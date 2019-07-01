@@ -76,8 +76,8 @@ def main(args):
         decoder1 = DecoderRNN(decoder_input_size, lang.n_words, embedding=encoder1.embedding)
 
     if use_cuda:
-        encoder1 = encoder1.cuda()
-        decoder1 = decoder1.cuda()
+        encoder1 = encoder1.to('cuda')
+        decoder1 = decoder1.to('cuda')
 
     trainIters(training_sents, encoder1, decoder1, 1000000, lang, print_every=5000, attention=attention, max_length=MAX_LENGTH, learning_rate=0.01, model_fn=args.out)
 
@@ -177,7 +177,7 @@ def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, 
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    return loss.data[0] / target_length
+    return loss.item() / target_length
 
 
 ######################################################################
